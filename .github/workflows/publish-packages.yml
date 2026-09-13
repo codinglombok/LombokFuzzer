@@ -1,0 +1,315 @@
+# Publish to ALL GitHub Packages registries on release.
+#
+# Fires on the same GitHub Release as publish.yml (which handles the public
+# npmjs.org registry). This one fans the built dist out to the five GitHub
+# Packages registries — every step authenticates with the built-in GITHUB_TOKEN,
+# so no extra secrets are needed.
+#
+#   npm       -> npm.pkg.github.com        @codinglombok/lombokfuzzer
+#   Container -> ghcr.io                   ghcr.io/codinglombok/lombokfuzzer
+#   Maven     -> maven.pkg.github.com      com.github.codinglombok:lombokfuzzer (webjar)
+#   NuGet     -> nuget.pkg.github.com      codinglombok.LombokFuzzer
+#   RubyGems  -> rubygems.pkg.github.com   lombokfuzzer
+
+name: Publish GitHub Packages (all registries)
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+# No implicit permissions — each job requests exactly what it needs.
+permissions: {}
+
+concurrency:
+  group: publish-packages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ── Build once; every publish job reuses this dist ──
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive version from tag
+        id: version
+        shell: bash
+        run: |
+          # release tag `v0.1.0` -> `0.1.0`; manual dispatch falls back to package.json
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 1
+
+  # ── 1) npm on GitHub Packages (org-scoped) ──
+  publish-npm:
+    name: npm (GitHub Packages)
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@codinglombok'
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Scope package name for GitHub Packages
+        shell: bash
+        run: |
+          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.name='@codinglombok/'+p.name.replace(/^@[^/]+\//,'');fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');console.log('name ->',p.name)"
+      - run: npm publish --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── 2) Container image on ghcr.io ──
+  publish-container:
+    name: Container (ghcr.io)
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to ghcr.io
+        shell: bash
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Build and push image
+        shell: bash
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')/lombokfuzzer"
+          docker build -t "${IMAGE}:${VERSION}" -t "${IMAGE}:latest" .
+          docker push "${IMAGE}:${VERSION}"
+          docker push "${IMAGE}:latest"
+
+  # ── 3) Maven webjar on maven.pkg.github.com ──
+  publish-maven:
+    name: Maven (webjar)
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Assemble webjar and deploy
+        shell: bash
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          GROUP_ID="com.github.codinglombok"
+          ARTIFACT_ID="lombokfuzzer"
+
+          # Lay out webjar resources: dist under META-INF/resources/webjars/<name>/<version>/
+          RES="webjar/META-INF/resources/webjars/${ARTIFACT_ID}/${VERSION}"
+          mkdir -p "$RES"
+          cp -r dist/* "$RES/"
+
+          # Build the jar (jar comes with the JDK from setup-java)
+          ( cd webjar && jar cf "../${ARTIFACT_ID}-${VERSION}.jar" . )
+
+          # Minimal pom for the webjar
+          cat > pom.xml <<POM
+          <project xmlns="http://maven.apache.org/POM/4.0.0"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+            <modelVersion>4.0.0</modelVersion>
+            <groupId>${GROUP_ID}</groupId>
+            <artifactId>${ARTIFACT_ID}</artifactId>
+            <version>${VERSION}</version>
+            <packaging>jar</packaging>
+            <name>LombokFuzzer</name>
+            <description>Universal fuzzing framework (webjar). Part of the Lombok Ecosystem.</description>
+            <url>https://github.com/codinglombok/LombokFuzzer</url>
+            <licenses>
+              <license>
+                <name>Apache-2.0</name>
+                <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+              </license>
+            </licenses>
+          </project>
+          POM
+
+          # settings.xml with the GitHub Packages server credentials
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<SETTINGS
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${GH_ACTOR}</username>
+                <password>${GH_TOKEN}</password>
+              </server>
+            </servers>
+          </settings>
+          SETTINGS
+
+          mvn -B deploy:deploy-file \
+            -DrepositoryId=github \
+            -Durl="https://maven.pkg.github.com/codinglombok/LombokFuzzer" \
+            -DpomFile=pom.xml \
+            -Dfile="${ARTIFACT_ID}-${VERSION}.jar"
+
+  # ── 4) NuGet content package on nuget.pkg.github.com ──
+  publish-nuget:
+    name: NuGet
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Pack and push
+        shell: bash
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p nuget/contentFiles/any/any/lombokfuzzer
+          cp -r dist/* nuget/contentFiles/any/any/lombokfuzzer/
+          cp README.md nuget/README.md
+
+          cat > nuget/codinglombok.LombokFuzzer.csproj <<CSPROJ
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>netstandard2.0</TargetFramework>
+              <IncludeBuildOutput>false</IncludeBuildOutput>
+              <NoDefaultExcludes>true</NoDefaultExcludes>
+              <PackageId>codinglombok.LombokFuzzer</PackageId>
+              <Version>${VERSION}</Version>
+              <Authors>codinglombok</Authors>
+              <Description>Universal fuzzing framework — dist JS content package. Part of the Lombok Ecosystem.</Description>
+              <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+              <RepositoryUrl>https://github.com/codinglombok/LombokFuzzer</RepositoryUrl>
+              <PackageReadmeFile>README.md</PackageReadmeFile>
+            </PropertyGroup>
+            <ItemGroup>
+              <Content Include="contentFiles/**" Pack="true" PackagePath="contentFiles" />
+              <None Include="README.md" Pack="true" PackagePath="" />
+            </ItemGroup>
+          </Project>
+          CSPROJ
+
+          cd nuget
+          dotnet pack -c Release -o out
+          dotnet nuget push "out/*.nupkg" \
+            --source "https://nuget.pkg.github.com/codinglombok/index.json" \
+            --api-key "${GH_TOKEN}" \
+            --skip-duplicate
+
+  # ── 5) RubyGems gem on rubygems.pkg.github.com ──
+  publish-rubygems:
+    name: RubyGems
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+      - name: Build and push gem
+        shell: bash
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p gem-pkg/lib/lombokfuzzer
+          cp -r dist gem-pkg/lib/lombokfuzzer/dist
+
+          # Ruby helper that resolves the packaged dist directory
+          cat > gem-pkg/lib/lombokfuzzer.rb <<RB
+          module Lombokfuzzer
+            VERSION = "${VERSION}"
+
+            # Absolute path to the bundled JS dist directory.
+            def self.dist_path
+              File.expand_path("lombokfuzzer/dist", __dir__)
+            end
+          end
+          RB
+
+          cat > gem-pkg/lombokfuzzer.gemspec <<GEMSPEC
+          Gem::Specification.new do |s|
+            s.name        = "lombokfuzzer"
+            s.version     = "${VERSION}"
+            s.summary     = "Universal fuzzing framework (JS dist wrapper). Part of the Lombok Ecosystem."
+            s.description = "Ships the compiled LombokFuzzer JS dist plus a helper exposing its path via Lombokfuzzer.dist_path."
+            s.authors     = ["codinglombok"]
+            s.homepage    = "https://github.com/codinglombok/LombokFuzzer"
+            s.license     = "Apache-2.0"
+            s.files       = Dir["lib/**/*"]
+            s.metadata    = { "github_repo" => "https://github.com/codinglombok/LombokFuzzer" }
+            s.required_ruby_version = ">= 2.7.0"
+          end
+          GEMSPEC
+
+          cd gem-pkg
+          gem build lombokfuzzer.gemspec
+
+          mkdir -p ~/.gem
+          printf -- "---\n:github: Bearer %s\n" "${GH_TOKEN}" > ~/.gem/credentials
+          chmod 0600 ~/.gem/credentials
+
+          gem push --key github \
+            --host "https://rubygems.pkg.github.com/codinglombok" \
+            "lombokfuzzer-${VERSION}.gem"
