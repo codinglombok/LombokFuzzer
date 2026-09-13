@@ -1,18 +1,18 @@
 # Dependencies
 node_modules/
 
-# Build output
-dist/
+# Build output (anchored to repo root so src/ paths are never matched)
+/dist/
 *.tsbuildinfo
 
-# Test coverage
-coverage/
+# Test coverage output
+/coverage/
 
-# Fuzzing artifacts
-corpus/
-crashes/
+# Fuzzing run artifacts (anchored — must NOT match src/corpus or src/coverage)
+/corpus/
+/crashes/
+/findings/
 *.crash
-findings/
 
 # Editor / OS
 .vscode/
