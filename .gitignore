@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+
+# Fuzzing artifacts
+corpus/
+crashes/
+*.crash
+findings/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+*.log
+
+# Env
+.env
+.env.local

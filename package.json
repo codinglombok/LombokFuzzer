@@ -1,0 +1,92 @@
+{
+  "name": "lombokfuzzer",
+  "version": "0.1.0",
+  "description": "Universal fuzzing framework — coverage-guided, grammar-aware, protocol/API/web/mobile/hardware fuzzing with industry-grade crash analysis. Part of the Lombok Ecosystem.",
+  "author": "codinglombok",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "types": "./dist/types/index.d.ts"
+    },
+    "./mutators": {
+      "import": "./dist/esm/mutators/index.js",
+      "require": "./dist/cjs/mutators/index.js"
+    }
+  },
+  "files": [
+    "dist/",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "npm run build:esm && npm run build:cjs && npm run build:types && npm run build:markers",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:types": "tsc -p tsconfig.types.json",
+    "build:markers": "node scripts/postbuild.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "example": "npm run build && node examples/basic-mutation.mjs",
+    "lint": "eslint src/ tests/",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "prepublishOnly": "npm run clean && npm run build && npm test"
+  },
+  "keywords": [
+    "fuzzer",
+    "fuzzing",
+    "fuzz-testing",
+    "security-testing",
+    "coverage-guided",
+    "mutation-testing",
+    "grammar-fuzzing",
+    "protocol-fuzzing",
+    "api-testing",
+    "web-security",
+    "crash-analysis",
+    "lombok-ecosystem",
+    "codinglombok"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codinglombok/LombokFuzzer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/codinglombok/LombokFuzzer/issues"
+  },
+  "homepage": "https://github.com/codinglombok/LombokFuzzer#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@jest/globals": "^29.7.0",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.20.2",
+    "eslint": "^9.0.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.4.12",
+    "typescript": "5.5"
+  },
+  "peerDependencies": {
+    "lombokcharts": ">=0.1.0",
+    "lombokcss": ">=0.1.0",
+    "lombokecc": ">=0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "lombokecc": {
+      "optional": true
+    },
+    "lombokcharts": {
+      "optional": true
+    },
+    "lombokcss": {
+      "optional": true
+    }
+  }
+}

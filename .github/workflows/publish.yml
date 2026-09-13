@@ -1,0 +1,80 @@
+name: Publish
+
+# Publishes on a GitHub Release. Draft a release whose tag matches the version
+# in package.json (e.g. tag `v0.1.0` for version `0.1.0`) and hit "Publish
+# release" — this workflow then pushes to both npm and GitHub Packages.
+# `workflow_dispatch` is provided for manual re-runs.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish to npm and GitHub Packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write   # push to GitHub Packages (GPR)
+      id-token: write   # npm provenance attestation
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Build + verify once, against the public npm registry config ──
+      - name: Set up Node (npm registry)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify release tag matches package.json version
+        if: github.event_name == 'release'
+        shell: bash
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          TAG="${{ github.event.release.tag_name }}"
+          TAG_VERSION="${TAG#v}"
+          echo "package.json version: $PKG_VERSION"
+          echo "release tag:          $TAG (normalized: $TAG_VERSION)"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::Release tag ($TAG_VERSION) does not match package.json version ($PKG_VERSION). Bump the version, commit, and re-tag."
+            exit 1
+          fi
+
+      - name: Build and test
+        run: |
+          npm run build
+          npm test
+
+      # ── 1) Publish to the public npm registry (unscoped name, with provenance) ──
+      - name: Publish to npm
+        run: npm publish --provenance --access public --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # ── 2) Publish to GitHub Packages (must be org-scoped) ──
+      - name: Set up Node (GitHub Packages)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@codinglombok'
+
+      - name: Scope package name for GitHub Packages
+        shell: bash
+        run: |
+          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.name='@codinglombok/'+p.name.replace(/^@[^/]+\//,'');fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');console.log('GitHub Packages name ->',p.name)"
+
+      - name: Publish to GitHub Packages
+        run: npm publish --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
