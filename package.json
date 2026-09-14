@@ -1,6 +1,6 @@
 {
   "name": "lombokfuzzer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Universal fuzzing framework — coverage-guided, grammar-aware, protocol/API/web/mobile/hardware fuzzing with industry-grade crash analysis. Part of the Lombok Ecosystem.",
   "author": "codinglombok",
   "license": "Apache-2.0",
@@ -24,6 +24,9 @@
     "LICENSE",
     "README.md"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "npm run build:esm && npm run build:cjs && npm run build:types && npm run build:markers",
     "build:esm": "tsc -p tsconfig.esm.json",

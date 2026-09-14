@@ -1,52 +1,39 @@
 name: Publish npm
 
-# Publishes to the PUBLIC npm registry (npmjs.org) on a GitHub Release.
-# The five GitHub Packages registries — including npm on GitHub Packages — are
-# handled separately by publish-packages.yml, which fires on the same release.
-#
-# Draft a release whose tag matches the version in package.json (e.g. tag
-# `v0.1.0` for version `0.1.0`) and hit "Publish release".
-# `workflow_dispatch` is provided for manual re-runs.
 on:
   release:
     types: [published]
-  workflow_dispatch:
-
-permissions:
-  contents: read
 
 jobs:
-  publish:
+  publish-npmjs:
     name: Publish to npmjs.org
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write   # npm provenance attestation
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node (npm registry)
+      - name: Setup Node.js (npm registry)
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
-          cache: npm
 
       - name: Install dependencies
         run: npm ci
 
       - name: Verify release tag matches package.json version
-        if: github.event_name == 'release'
-        shell: bash
         run: |
           PKG_VERSION="$(node -p "require('./package.json').version")"
-          TAG="${{ github.event.release.tag_name }}"
-          TAG_VERSION="${TAG#v}"
-          echo "package.json version: $PKG_VERSION"
-          echo "release tag:          $TAG (normalized: $TAG_VERSION)"
-          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
-            echo "::error::Release tag ($TAG_VERSION) does not match package.json version ($PKG_VERSION). Bump the version, commit, and re-tag."
+          RELEASE_TAG="${GITHUB_REF_NAME}"
+          NORMALIZED="${RELEASE_TAG#v}"
+          echo "package.json version : ${PKG_VERSION}"
+          echo "release tag          : ${RELEASE_TAG} (normalized: ${NORMALIZED})"
+          if [ "${NORMALIZED}" != "${PKG_VERSION}" ]; then
+            echo "ERROR: Release tag (${NORMALIZED}) does not match package.json version (${PKG_VERSION})."
+            echo "Jika pakai workflow 'Bump Version & Release', ini tidak akan pernah terjadi."
             exit 1
           fi
 
@@ -56,6 +43,6 @@ jobs:
           npm test
 
       - name: Publish to npm
-        run: npm publish --provenance --access public --ignore-scripts
+        run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
