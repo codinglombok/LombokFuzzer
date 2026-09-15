@@ -162,5 +162,4 @@ export { PRNG } from './utils/prng.js';
 export { fnv1a64, xxhash64, stackHash, edgeHash } from './utils/hash.js';
 
 // ─── Version ────────────────────────────────────────────────────────────────
-export const VERSION = '0.2.0';
-export const CODENAME = 'LombokFuzzer';
+export { VERSION, CODENAME } from './version.js';

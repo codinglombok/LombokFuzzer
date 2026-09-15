@@ -16,7 +16,7 @@
 
 import type { FuzzConfig, ReporterConfig } from '../core/types.js';
 import { FuzzMode, SchedulerAlgorithm, HarnessMode } from '../core/types.js';
-import { VERSION } from '../index.js';
+import { VERSION } from '../version.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 

@@ -18,7 +18,7 @@
  */
 
 import type { FuzzStats, CrashInfo } from '../core/types.js';
-import { VERSION } from '../index.js';
+import { VERSION } from '../version.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
