@@ -36,18 +36,44 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Bump version (npm version)
+      - name: Bump version
         id: bump
         run: |
+          # 1. Bump package.json (tanpa git tag otomatis)
           NEW_VERSION=$(npm version ${{ inputs.bump }} --no-git-tag-version)
+          CLEAN_VERSION="${NEW_VERSION#v}"
           echo "new_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
-          echo "Bumped to: ${NEW_VERSION}"
+          echo "clean_version=${CLEAN_VERSION}" >> $GITHUB_OUTPUT
+          echo "Bumped to: ${NEW_VERSION} (${CLEAN_VERSION})"
+
+          # 2. Sync src/version.ts
+          if [ -f src/version.ts ]; then
+            sed -i "s/export const VERSION = '.*'/export const VERSION = '${CLEAN_VERSION}'/" src/version.ts
+            echo "Updated src/version.ts → ${CLEAN_VERSION}"
+          fi
+
+          # 3. Sync ports version constants
+          for f in ports/go/lombokfuzzer.go; do
+            [ -f "$f" ] && sed -i "s/const Version = \".*\"/const Version = \"${CLEAN_VERSION}\"/" "$f"
+          done
+          for f in ports/rust/Cargo.toml; do
+            [ -f "$f" ] && sed -i "s/^version = \".*\"/version = \"${CLEAN_VERSION}\"/" "$f"
+          done
+          for f in ports/python/lombokfuzzer.py; do
+            [ -f "$f" ] && sed -i "s/__version__ = \".*\"/__version__ = \"${CLEAN_VERSION}\"/" "$f"
+          done
+          for f in ports/cpp/CMakeLists.txt; do
+            [ -f "$f" ] && sed -i "s/project(lombokfuzzer VERSION .*/project(lombokfuzzer VERSION ${CLEAN_VERSION} LANGUAGES CXX)/" "$f"
+          done
+
+          # 4. Update package-lock.json
+          npm install --package-lock-only 2>/dev/null || true
 
       - name: Commit & tag
         run: |
-          git add package.json
+          git add -A
           git commit -m "chore: bump version to ${{ steps.bump.outputs.new_version }}"
-          git tag ${{ steps.bump.outputs.new_version }}
+          git tag -a ${{ steps.bump.outputs.new_version }} -m "${{ steps.bump.outputs.new_version }}"
 
       - name: Push commit + tag
         run: git push origin main --follow-tags
@@ -57,6 +83,10 @@ jobs:
         with:
           tag_name: ${{ steps.bump.outputs.new_version }}
           name: "${{ steps.bump.outputs.new_version }}"
+          body: |
+            ## ${{ steps.bump.outputs.new_version }}
+            
+            **Full Changelog**: https://github.com/${{ github.repository }}/compare/v0.2.0...${{ steps.bump.outputs.new_version }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
