@@ -56,6 +56,9 @@ jobs:
           registry-url: 'https://npm.pkg.github.com'
           scope: '@codinglombok'              # <-- scope org GitHub
 
+      - name: Install dependencies
+        run: npm ci
+
       - name: Publish to GitHub Packages (npm)
         run: npm publish --access public
         env:
@@ -150,9 +153,9 @@ jobs:
 
       - name: Pack NuGet
         run: |
-          dotnet pack LombokFuzzer.nuspec \
-            -p:Version=${{ env.RELEASE_VERSION }} \
-            --output nupkg/
+          nuget pack LombokFuzzer.nuspec \
+            -Version ${{ env.RELEASE_VERSION }} \
+            -OutputDirectory nupkg/
 
       - name: Push to GitHub Packages (NuGet)
         run: |

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+    https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.github.codinglombok</groupId>
+  <artifactId>lombokfuzzer</artifactId>
+  <version>${revision}</version>
+  <packaging>jar</packaging>
+
+  <name>LombokFuzzer</name>
+  <description>Universal fuzzing framework — dist JS content package. Part of the Lombok Ecosystem.</description>
+  <url>https://github.com/codinglombok/LombokFuzzer</url>
+
+  <licenses>
+    <license>
+      <name>Apache-2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+    </license>
+  </licenses>
+
+  <properties>
+    <revision>0.0.0</revision>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <build>
+    <resources>
+      <resource>
+        <directory>dist</directory>
+        <targetPath>META-INF/resources/webjars/${project.artifactId}/${project.version}</targetPath>
+      </resource>
+    </resources>
+  </build>
+
+  <distributionManagement>
+    <repository>
+      <id>github</id>
+      <url>https://maven.pkg.github.com/codinglombok/LombokFuzzer</url>
+    </repository>
+  </distributionManagement>
+</project>
