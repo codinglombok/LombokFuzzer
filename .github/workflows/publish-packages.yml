@@ -60,7 +60,7 @@ jobs:
         run: npm ci
 
       - name: Publish to GitHub Packages (npm)
-        run: npm publish --access public
+        run: npm publish --access public --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # <-- GITHUB_TOKEN, bukan NPM_TOKEN
 
