@@ -37,7 +37,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     permissions:
-      packages: write   # <-- WAJIB untuk GitHub Packages
+      packages: write
       contents: read
 
     steps:
@@ -54,15 +54,11 @@ jobs:
         with:
           node-version: '22'
           registry-url: 'https://npm.pkg.github.com'
-          scope: '@codinglombok'              # <-- scope org GitHub
-
-      - name: Install dependencies
-        run: npm ci
 
       - name: Publish to GitHub Packages (npm)
-        run: npm publish --access public --ignore-scripts
+        run: npm publish --access public --ignore-scripts --registry https://npm.pkg.github.com/
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # <-- GITHUB_TOKEN, bukan NPM_TOKEN
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ── Container (ghcr.io) ──────────────────────────────────────────────────
   container:
@@ -118,11 +114,25 @@ jobs:
       - name: Set version from tag
         run: echo "RELEASE_VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
 
+      - name: Create Maven settings
+        run: |
+          mkdir -p $HOME/.m2
+          cat > $HOME/.m2/settings.xml << 'EOF'
+          <settings>
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${env.GITHUB_ACTOR}</username>
+                <password>${env.GITHUB_TOKEN}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+
       - name: Deploy WebJar to GitHub Packages (Maven)
         run: |
           mvn --batch-mode deploy \
-            -Drevision=${{ env.RELEASE_VERSION }} \
-            --settings .github/maven-settings.xml
+            -Drevision=${{ env.RELEASE_VERSION }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -151,11 +161,40 @@ jobs:
       - name: Set version from tag
         run: echo "RELEASE_VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
 
-      - name: Pack NuGet
+      - name: Install NuGet CLI
         run: |
-          nuget pack LombokFuzzer.nuspec \
-            -Version ${{ env.RELEASE_VERSION }} \
-            -OutputDirectory nupkg/
+          sudo curl -o /usr/local/bin/nuget.exe https://dist.nuget.org/win-x86-commandline/latest/nuget.exe
+          alias nuget="mono /usr/local/bin/nuget.exe"
+          echo '#!/bin/bash' | sudo tee /usr/local/bin/nuget
+          echo 'mono /usr/local/bin/nuget.exe "$@"' | sudo tee -a /usr/local/bin/nuget
+          sudo chmod +x /usr/local/bin/nuget
+          sudo apt-get install -y mono-complete 2>/dev/null || true
+
+      - name: Pack and Push NuGet
+        run: |
+          # Use dotnet pack with a minimal csproj instead of nuget CLI
+          mkdir -p nupkg
+          cat > /tmp/LombokFuzzer.csproj << EOF
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>netstandard2.0</TargetFramework>
+              <PackageId>codinglombok.LombokFuzzer</PackageId>
+              <Version>${{ env.RELEASE_VERSION }}</Version>
+              <Authors>codinglombok</Authors>
+              <Description>Universal fuzzing framework — dist JS content package. Part of the Lombok Ecosystem.</Description>
+              <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+              <RepositoryUrl>https://github.com/codinglombok/LombokFuzzer</RepositoryUrl>
+              <IncludeBuildOutput>false</IncludeBuildOutput>
+            </PropertyGroup>
+            <ItemGroup>
+              <Content Include="dist/**" Pack="true" PackagePath="content/dist" />
+              <Content Include="README.md" Pack="true" PackagePath="content/" />
+              <Content Include="LICENSE" Pack="true" PackagePath="content/" />
+            </ItemGroup>
+          </Project>
+          EOF
+          cp /tmp/LombokFuzzer.csproj .
+          dotnet pack LombokFuzzer.csproj -o nupkg/
 
       - name: Push to GitHub Packages (NuGet)
         run: |
@@ -195,6 +234,6 @@ jobs:
         run: |
           gem push --key github \
             --host https://rubygems.pkg.github.com/codinglombok \
-            lombok_fuzzer-${{ env.RELEASE_VERSION }}.gem
+            lombokfuzzer-${{ env.RELEASE_VERSION }}.gem
         env:
-          GEM_HOST_API_KEY: ${{ secrets.GITHUB_TOKEN }}
+          GEM_HOST_API_KEY: "Bearer ${{ secrets.GITHUB_TOKEN }}"
