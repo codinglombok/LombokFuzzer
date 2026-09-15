@@ -100,10 +100,67 @@ export type { TimingTestResult, RNGTestResult, CryptoFinding } from './crypto/fu
 export { HardwareFuzzer, HWInterface } from './hardware/fuzzer.js';
 export type { HWFuzzTarget, RegisterMap, RegisterDef, HWFuzzCommand, HWFinding } from './hardware/fuzzer.js';
 
+// ─── Generators ─────────────────────────────────────────────────────────────
+export { GeneratorEngine, GeneratorKind } from './generators/engine.js';
+export type {
+  GeneratorConfig, GenerationResult, GenerationHistory, GenerationContext,
+} from './generators/engine.js';
+
+// ─── Harness ────────────────────────────────────────────────────────────────
+export {
+  HarnessManager, InProcessHarness, ForkServerHarness, NetworkHarness, WasmHarness,
+} from './harness/manager.js';
+export type { Harness, HarnessStats } from './harness/manager.js';
+
+// ─── Reporters ──────────────────────────────────────────────────────────────
+export {
+  ReporterRegistry, ConsoleReporter, JsonReporter, HtmlReporter, CiReporter,
+} from './reporters/reporter.js';
+export type { Reporter } from './reporters/reporter.js';
+
+// ─── Sanitizers ─────────────────────────────────────────────────────────────
+export {
+  SanitizerParser, SanitizerKind,
+  JsBoundsChecker, JsLeakChecker, JsTypeChecker,
+} from './sanitizers/bridge.js';
+export type { SanitizerFinding } from './sanitizers/bridge.js';
+
+// ─── Differential ───────────────────────────────────────────────────────────
+export { DiffOracle, DivergenceKind } from './differential/oracle.js';
+export type {
+  Oracle, OracleOutput, DiffResult, Divergence, DiffOracleConfig, DiffStats,
+} from './differential/oracle.js';
+
+// ─── ECC Integrity ──────────────────────────────────────────────────────────
+export { EccIntegrity, IntegrityStatus } from './ecc/integrity.js';
+export type { IntegrityResult, EccConfig } from './ecc/integrity.js';
+
+// ─── Mobile Fuzzing ─────────────────────────────────────────────────────────
+export {
+  MobileFuzzer, MobilePlatform,
+  AndroidHarness, IOSHarness, ReactNativeHarness,
+} from './mobile/fuzzer.js';
+export type {
+  AndroidConfig, IOSConfig, ReactNativeConfig,
+  MobileCrashReport, MobileStackFrame, BridgePayload,
+} from './mobile/fuzzer.js';
+
+// ─── CLI ────────────────────────────────────────────────────────────────────
+export {
+  cli, parseArgs, buildConfigFromFlags, loadConfigFile,
+  handleVersion, handleHelp, handleCorpus, handleCrash,
+  CliCommand,
+} from './cli/cli.js';
+export type { CliArgs, CliResult } from './cli/cli.js';
+
+// ─── Dashboard ──────────────────────────────────────────────────────────────
+export { DashboardBuilder } from './dashboard/dashboard.js';
+export type { StatsSnapshot, DashboardConfig, DashboardCrash } from './dashboard/dashboard.js';
+
 // ─── Utilities ──────────────────────────────────────────────────────────────
 export { PRNG } from './utils/prng.js';
 export { fnv1a64, xxhash64, stackHash, edgeHash } from './utils/hash.js';
 
 // ─── Version ────────────────────────────────────────────────────────────────
-export const VERSION = '0.1.0';
+export const VERSION = '0.2.0';
 export const CODENAME = 'LombokFuzzer';
