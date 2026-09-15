@@ -1,0 +1,14 @@
+[package]
+name = "lombokfuzzer"
+version = "0.2.0"
+edition = "2021"
+authors = ["codinglombok"]
+license = "Apache-2.0"
+description = "Universal fuzzing framework — Rust port. Part of the Lombok Ecosystem."
+repository = "https://github.com/codinglombok/LombokFuzzer"
+keywords = ["fuzzing", "security", "testing", "coverage"]
+categories = ["development-tools::testing"]
+
+[lib]
+name = "lombokfuzzer"
+path = "src/lib.rs"
