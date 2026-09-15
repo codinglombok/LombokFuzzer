@@ -1,6 +1,6 @@
 {
   "name": "lombokfuzzer",
-  "version": "0.3.0",
+  "version": "0.2.0",
   "description": "Universal fuzzing framework — coverage-guided, grammar-aware, protocol/API/web/mobile/hardware fuzzing with industry-grade crash analysis. Part of the Lombok Ecosystem.",
   "author": "codinglombok",
   "license": "Apache-2.0",
